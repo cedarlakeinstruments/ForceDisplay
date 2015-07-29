@@ -19,6 +19,9 @@ public class MainActivity extends ActionBarActivity
 {
 
     private boolean _running;
+    private final int BUF_SIZE = 20;
+    private byte[] _buffer = new byte[BUF_SIZE];
+    private int _bufferIndex = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -66,49 +69,92 @@ public class MainActivity extends ActionBarActivity
     public void onConnect(View v)
     {
         final TextView bend   = (TextView)findViewById(R.id.textView);
+        final TextView statusText = (TextView)findViewById(R.id.textView2);
         final View thisView = v;
         new Thread(new Runnable()
         {
             public void run()
             {
-                final String mac ="00:06:66:00:A0:AF";
-                updateUI(bend, bend, String.format("Connecting to %s...", mac));
+                try
+                {
+                    final String mac = "00:06:66:00:A0:AF";
+                    updateUI(thisView, statusText, String.format("Connecting to %s...", mac));
 
-                InputStream stream = connect(mac);
-                if (stream != null)
-                {
-                    int val = 0;
-                    int i = 0;
-                    byte[] buffer = new byte[20];
-                    while (_running)
-                    {
-                        try
-                        {
-                            val = stream.read(buffer);
-                            if (val != 0)
-                            {
-                                // Convert to text
-                                String value = new String(buffer, "UTF-8");
-                                updateUI(thisView, bend, value);
+                    InputStream stream = connect(mac);
+                    if (stream != null) {
+                        updateUI(thisView, statusText, String.format("Connected to %s", mac));
+                        while (_running) {
+                            // Display value
+                            int sensor = readMessageAndDecode(stream);
+                            if (sensor != -1) {
+                                updateUI(thisView, bend, String.valueOf(sensor));
                             }
-                            Thread.sleep(2500);
                         }
-                        catch (IOException ioEx) {
-                            ioEx.printStackTrace();
-                            updateUI(thisView, bend, String.format("Error: %s", ioEx.toString()));
-                        }
-                        catch (InterruptedException intEx) {
-                            intEx.printStackTrace();
-                        }
+                    } else {
+                        // Update UI
+                        updateUI(thisView, statusText, "Failed to connect");
                     }
+                    Thread.sleep(2500);
                 }
-                else
-                {
-                    // Update UI
-                    updateUI(thisView, bend, "Failed to connect");
+                catch (InterruptedException intEx) {
+                    intEx.printStackTrace();
                 }
             }
         }).start();
+    }
+
+    // Read the input stream and return a decoded value
+    private int readMessageAndDecode(InputStream stream)
+    {
+        int valRead = 0;
+        int value = -1;
+        final int CR = 13;
+        final int LF = 10;
+        //byte[] buffer = {'$','F','S','D','A','T',',','3','1','4','9',13,10};
+        try
+        {
+            // We expect data in the format: '$FSDAT,1234<CR><LF>'
+            // with a maximum of 4 bytes of data
+            valRead = stream.read();
+            _buffer[_bufferIndex++] = (byte)valRead;
+            if (BUF_SIZE == _bufferIndex)
+            {
+                _bufferIndex = 0;
+            }
+            if (valRead == LF)
+            {
+                // Decode datastream
+                _buffer[_bufferIndex] = '\0';
+                _bufferIndex = 0;
+                value = decode (new String(_buffer, "UTF-8"));
+            }
+        }
+        catch (IOException ioEx) {
+            ioEx.printStackTrace();
+            value = -1;
+        }
+        return value;
+    }
+
+    // Decode the raw NMEA format data
+    // We send data in the form of $FSDAT,xxxx<CR><LF>
+    private int decode(String raw)
+    {
+        int value = -1;
+        final String PREAMBLE = "$FSDAT,";
+        int prePos = raw.indexOf(PREAMBLE);
+        if (prePos != -1)
+        {
+            // Look for the CRLF
+            final String POSTAMBLE = new String(new byte[]{13,10});
+            // Point at end of string
+            int postPos = raw.indexOf(POSTAMBLE);
+            if (postPos != -1) {
+                String strVal = raw.substring(prePos+PREAMBLE.length(), postPos);
+                value = Integer.parseInt(strVal);
+            }
+        }
+        return value;
     }
 
     // Connects to device
@@ -125,6 +171,7 @@ public class MainActivity extends ActionBarActivity
         BluetoothSocket socket = null;
         if (device != null)
         {
+            // Use predefined Bluetooth UUID for SPP protocol
             UUID serialID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
             try
             {

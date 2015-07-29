@@ -6,7 +6,7 @@
     android:paddingBottom="@dimen/activity_vertical_margin" tools:context=".MainActivityFragment"
     android:background="@android:color/background_dark">
 
-    <TextView android:text="@string/hello_world" android:layout_width="wrap_content"
+    <TextView android:text="No data" android:layout_width="fill_parent"
         android:layout_height="wrap_content"
         android:id="@+id/textView"
         android:textSize="@dimen/abc_text_size_display_2_material"
@@ -25,5 +25,15 @@
         android:background="@android:color/holo_blue_light"
         android:layout_alignRight="@+id/textView"
         android:layout_alignEnd="@+id/textView" />
+
+    <TextView
+        android:textColor="@android:color/white"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textAppearance="?android:attr/textAppearanceMedium"
+        android:text="Status"
+        android:id="@+id/textView2"
+        android:layout_centerVertical="true"
+        android:singleLine="true" />
 
 </RelativeLayout>
